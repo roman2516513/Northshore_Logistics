@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+db/*.db
+logs/*.log
+exports/*.csv
+.vscode/
