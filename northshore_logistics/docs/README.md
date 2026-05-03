@@ -7,19 +7,20 @@ Prerequisite: Python 3.11+
 From the repository root:
 
 ```bash
+
 cd northshore_logistics
+
+
 python main.py
+
+
 ```
 
-The application will initialise the SQLite database and seed default users on first run.
+The application will initialise the SQLite database and seed default roles on first run.
 
-## Default users
-
-- admin / Admin123!
-- manager / Manager123!
-- warehouse / Warehouse123!
-- driver / Driver123!
-- service / Service123!
+An initial administrative account will be created automatically if no users exist. A randomly generated password
+will be written to a local file named `northshore_local_credentials.txt` (or `<dbname>.credentials.txt` next to the database).
+Keep that file private and remove it after you set a permanent password. The repository does NOT contain default plaintext credentials.
 
 ## Navigate
 

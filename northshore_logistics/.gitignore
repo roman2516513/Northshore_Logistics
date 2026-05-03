@@ -4,3 +4,6 @@ db/*.db
 logs/*.log
 exports/*.csv
 .vscode/
+northshore_local_credentials.txt
+northshore_rotated_credentials.txt
+*.credentials.txt

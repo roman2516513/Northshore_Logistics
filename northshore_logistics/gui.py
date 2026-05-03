@@ -90,13 +90,28 @@ class App:
         frm = ttk.Frame(self.root, padding=10)
         frm.pack(fill='both', expand=True)
         ttk.Label(frm, text=f'Welcome: {self.user}').grid(row=0, column=0, sticky='w')
+        def _has_permission(perm: str) -> bool:
+            role_name = (self.role or '').strip()
+            if not role_name:
+                return False
+            # exact match
+            perms = ROLE_PERMISSIONS.get(role_name)
+            if perms is not None:
+                return ('all' in perms) or (perm in perms)
+            # case-insensitive fallback
+            for k, v in ROLE_PERMISSIONS.items():
+                if k.lower() == role_name.lower():
+                    return ('all' in v) or (perm in v)
+            return False
+
         col = 0
         def add_btn(text, cmd, perm):
-            if 'all' in ROLE_PERMISSIONS.get(self.role, []) or perm in ROLE_PERMISSIONS.get(self.role, []):
-                b = ttk.Button(frm, text=text, command=cmd)
-                b.grid(row=1, column=col, padx=5, pady=5)
-                return True
-            return False
+            nonlocal col
+            state = 'normal' if _has_permission(perm) else 'disabled'
+            b = ttk.Button(frm, text=text, command=cmd, state=state)
+            b.grid(row=1, column=col, padx=5, pady=5)
+            col += 1
+
         add_btn('Shipments', self.open_shipments, 'shipments')
         add_btn('Inventory', self.open_inventory, 'inventory')
         add_btn('Fleet', self.open_fleet, 'fleet')
