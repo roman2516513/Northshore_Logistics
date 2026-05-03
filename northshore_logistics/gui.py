@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
+from tkinter import font as tkfont
 from typing import Optional
 import auth
 import database
@@ -23,21 +24,50 @@ class App:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title('Northshore Logistics - Login')
+        # Make window larger and allow resizing so it feels more like a web app
+        try:
+            self.root.state('zoomed')
+        except Exception:
+            # fallback to a sensible geometry if zoom not supported
+            self.root.geometry('1000x700')
+        self.root.minsize(800, 600)
         self.user = None
         self.role = None
         self.user_id = None
         self._build_login()
 
     def _build_login(self):
-        frm = ttk.Frame(self.root, padding=20)
-        frm.pack(fill='both', expand=True)
-        ttk.Label(frm, text='Username').grid(row=0, column=0, sticky='w')
+        # Root layout: left panel for user types, right panel for login form
+        for w in self.root.winfo_children():
+            w.destroy()
+        container = ttk.Frame(self.root, padding=20)
+        container.pack(fill='both', expand=True)
+        container.columnconfigure(0, weight=1)
+        container.columnconfigure(1, weight=2)
+
+        # Left: roles and counts
+        left = ttk.Frame(container, padding=(10, 10))
+        left.grid(row=0, column=0, sticky='nsew')
+        ttk.Label(left, text='User Types', font=('Segoe UI', 14, 'bold')).pack(anchor='w')
+        self.roles_box = ttk.Frame(left)
+        self.roles_box.pack(fill='both', expand=True, pady=(10, 0))
+        self._populate_role_counts()
+
+        # Right: login form
+        right = ttk.Frame(container, padding=(20, 10))
+        right.grid(row=0, column=1, sticky='nsew')
+        right.columnconfigure(0, weight=1)
+        ttk.Label(right, text='Welcome to Northshore Logistics', font=('Segoe UI', 18, 'bold')).grid(row=0, column=0, sticky='w', pady=(0,10))
+        ttk.Label(right, text='Username').grid(row=1, column=0, sticky='w')
         self.username_var = tk.StringVar()
-        ttk.Entry(frm, textvariable=self.username_var).grid(row=0, column=1)
-        ttk.Label(frm, text='Password').grid(row=1, column=0, sticky='w')
+        ttk.Entry(right, textvariable=self.username_var).grid(row=2, column=0, sticky='ew')
+        ttk.Label(right, text='Password').grid(row=3, column=0, sticky='w', pady=(10,0))
         self.password_var = tk.StringVar()
-        ttk.Entry(frm, textvariable=self.password_var, show='*').grid(row=1, column=1)
-        ttk.Button(frm, text='Login', command=self._on_login).grid(row=2, column=0, columnspan=2, pady=10)
+        ttk.Entry(right, textvariable=self.password_var, show='*').grid(row=4, column=0, sticky='ew')
+        ttk.Button(right, text='Login', command=self._on_login).grid(row=5, column=0, pady=20, sticky='w')
+
+        # Small help text
+        ttk.Label(right, text='Select a user type on the left to see how many users exist for that role.').grid(row=6, column=0, sticky='w')
 
     def _on_login(self):
         username = self.username_var.get().strip()
@@ -86,6 +116,35 @@ class App:
             w.destroy()
         self.root.title('Northshore Logistics - Login')
         self._build_login()
+
+    def _get_role_counts(self):
+        try:
+            rows = database.fetch_all('''
+                SELECT r.id, r.name, COUNT(u.id) as count FROM roles r
+                LEFT JOIN users u ON u.role_id = r.id
+                GROUP BY r.id ORDER BY r.name
+            ''')
+            return rows
+        except Exception:
+            return []
+
+    def _populate_role_counts(self):
+        # Clear existing
+        for w in getattr(self, 'roles_box', []).winfo_children() if hasattr(self, 'roles_box') else []:
+            w.destroy()
+        rows = self._get_role_counts()
+        if not rows:
+            if hasattr(self, 'roles_box'):
+                ttk.Label(self.roles_box, text='No roles defined').pack(anchor='w')
+            return
+        for r in rows:
+            text = f"{r['name']} — {r['count']} users"
+            if hasattr(self, 'roles_box'):
+                lbl = ttk.Label(self.roles_box, text=text, cursor='hand2')
+                lbl.pack(anchor='w', pady=2)
+                def _on_click(ev, role_name=r['name']):
+                    self.username_var.set(f"{role_name.lower().replace(' ', '_')}")
+                lbl.bind('<Button-1>', _on_click)
 
     def open_shipments(self):
         win = tk.Toplevel(self.root)
