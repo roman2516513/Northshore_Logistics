@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS customers (
     contact_email TEXT,
     address TEXT NOT NULL
 );
+
 CREATE TABLE IF NOT EXISTS inventory_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sku TEXT NOT NULL UNIQUE,
