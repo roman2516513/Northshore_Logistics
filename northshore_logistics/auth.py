@@ -45,82 +45,34 @@ def verify_user(username: str, password: str) -> Optional[Tuple[int, str, int]]:
     return None
 
 
+def update_password(user_id: int, new_password: str) -> None:
+    """Update a user's password by user id."""
+    try:
+        salt = secrets.token_hex(16)
+        pwd_hash = _hash_password(new_password, salt.encode('utf-8'))
+        database.safe_execute('UPDATE users SET password_hash = ?, salt = ? WHERE id = ?', (pwd_hash, salt, user_id))
+        logger.info('Updated password for user id %s', user_id)
+    except Exception:
+        logger.exception('Failed to update password for user id %s', user_id)
+
+
 def ensure_default_users() -> None:
-    # Ensure roles exist. Do NOT create users with hard-coded passwords.
     roles = ['Admin', 'Manager', 'Warehouse Staff', 'Driver', 'Customer Service']
     existing = {r['name'] for r in database.fetch_all('SELECT name FROM roles')}
     for r in roles:
         if r not in existing:
             database.safe_execute('INSERT INTO roles (name) VALUES (?)', (r,))
-    # If there are no users at all, create a single admin with a generated password
-    # and write credentials to a local file outside version control.
-    users_exist = database.fetch_one('SELECT id FROM users LIMIT 1')
-    if not users_exist:
-        _create_initial_admin()
-    else:
-        # If there are existing users, rotate any common seeded usernames' passwords
-        try:
-            rotate_default_user_passwords()
-        except Exception:
-            logger.exception('Error rotating default user passwords')
+    rows = database.fetch_all('SELECT id, name FROM roles')
+    role_map = {r['name']: r['id'] for r in rows}
 
-
-def _create_initial_admin() -> None:
-    try:
-        rows = database.fetch_all('SELECT id, name FROM roles')
-        role_map = {r['name']: r['id'] for r in rows}
-        admin_role = role_map.get('Admin')
-        if admin_role is None:
-            logger.error('Admin role not found when creating initial admin')
-            return
-        username = 'admin'
-        # Generate a strong random password
-        password = secrets.token_urlsafe(16)
-        create_user(username, password, admin_role, display_name='Administrator')
-        # Write credentials to a local file for the operator. This file should be kept
-        # out of version control (.gitignore) and removed after first use.
-        cred_path = database.get_db_path() if hasattr(database, 'get_db_path') else 'northshore_local_credentials.txt'
-        try:
-            # If database exposes a project dir, write next to DB; otherwise use cwd file
-            if isinstance(cred_path, str) and cred_path.endswith('.db'):
-                cred_file = cred_path.replace('.db', '.credentials.txt')
-            else:
-                cred_file = 'northshore_local_credentials.txt'
-            with open(cred_file, 'w', encoding='utf-8') as f:
-                f.write(f'Initial admin username: {username}\n')
-                f.write(f'Initial admin password: {password}\n')
-            logger.info('Wrote initial admin credentials to %s', cred_file)
-        except Exception:
-            logger.exception('Failed to write initial admin credentials to file')
-    except Exception:
-        logger.exception('Failed to create initial admin')
-
-
-def rotate_default_user_passwords() -> None:
-    """If common seeded usernames exist, rotate their passwords to random values
-    and write the new credentials to a local file. This helps remove predictable
-    credentials that may have been present in earlier seeds/README."""
-    defaults = ['admin', 'manager', 'warehouse', 'driver', 'service']
-    rotated = []
-    try:
-        rows = database.fetch_all('SELECT id, username FROM users WHERE username IN (?,?,?,?,?)', tuple(defaults))
-        if not rows:
-            return
-        for r in rows:
-            new_pwd = secrets.token_urlsafe(16)
-            # update password for user id
-            salt = secrets.token_hex(16)
-            pwd_hash = _hash_password(new_pwd, salt.encode('utf-8'))
-            database.safe_execute('UPDATE users SET password_hash = ?, salt = ? WHERE id = ?', (pwd_hash, salt, r['id']))
-            rotated.append((r['username'], new_pwd))
-        # write rotated credentials to a local file
-        try:
-            cred_file = 'northshore_rotated_credentials.txt'
-            with open(cred_file, 'w', encoding='utf-8') as f:
-                for u, p in rotated:
-                    f.write(f'{u}:{p}\n')
-            logger.info('Wrote rotated credentials to %s', cred_file)
-        except Exception:
-            logger.exception('Failed to write rotated credentials')
-    except Exception:
-        logger.exception('Failed to rotate default user passwords')
+    defaults = [
+        ('admin', 'Admin123!', 'Admin'),
+        ('manager', 'Manager123!', 'Manager'),
+        ('warehouse', 'Warehouse123!', 'Warehouse Staff'),
+        ('driver', 'Driver123!', 'Driver'),
+        ('service', 'Service123!', 'Customer Service')
+    ]
+    for username, pwd, role_name in defaults:
+        exists = database.fetch_one('SELECT id FROM users WHERE username = ?', (username,))
+        if not exists:
+            create_user(username, pwd, role_map[role_name], display_name=username.capitalize())

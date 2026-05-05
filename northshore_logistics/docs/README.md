@@ -18,9 +18,29 @@ python main.py
 
 The application will initialise the SQLite database and seed default roles on first run.
 
-An initial administrative account will be created automatically if no users exist. A randomly generated password
-will be written to a local file named `northshore_local_credentials.txt` (or `<dbname>.credentials.txt` next to the database).
-Keep that file private and remove it after you set a permanent password. The repository does NOT contain default plaintext credentials.
+## Initial Credentials (Local/Dev)
+
+Hard-coded credentials for testing:
+
+| Role | Username | Password |
+|------|----------|----------|
+| Admin | admin | Admin123! |
+| Manager | manager | Manager123! |
+| Warehouse Staff | warehouse | Warehouse123! |
+| Driver | driver | Driver123! |
+| Customer Service | service | Service123! |
+
+**⚠️ IMPORTANT:** Change these passwords immediately after first login using the "Change Password" button on the dashboard. Do NOT deploy with these credentials to production.
+
+## Workflow
+
+A short, typical workflow:
+
+- Login using one of the seeded users.
+- From the dashboard open the relevant area (Shipments, Inventory, Fleet, Drivers, Incidents).
+- Create or update records using the provided dialogs and buttons.
+- Use Reports to export CSVs for analysis.
+- Admin users can view Audit Logs for activity tracking.
 
 ## Navigate
 

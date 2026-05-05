@@ -24,11 +24,9 @@ class App:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title('Northshore Logistics - Login')
-        # Make window larger and allow resizing so it feels more like a web app
         try:
             self.root.state('zoomed')
         except Exception:
-            # fallback to a sensible geometry if zoom not supported
             self.root.geometry('1000x700')
         self.root.minsize(800, 600)
         self.user = None
@@ -37,14 +35,13 @@ class App:
         self._build_login()
 
     def _build_login(self):
-        # Root layout: left panel for user types, right panel for login form
         for w in self.root.winfo_children():
             w.destroy()
         container = ttk.Frame(self.root, padding=20)
         container.pack(fill='both', expand=True)
         container.columnconfigure(0, weight=1)
         container.columnconfigure(1, weight=2)
-
+        
         # Left: roles and counts
         left = ttk.Frame(container, padding=(10, 10))
         left.grid(row=0, column=0, sticky='nsew')
@@ -66,7 +63,7 @@ class App:
         ttk.Entry(right, textvariable=self.password_var, show='*').grid(row=4, column=0, sticky='ew')
         ttk.Button(right, text='Login', command=self._on_login).grid(row=5, column=0, pady=20, sticky='w')
 
-        # Small help text
+        
         ttk.Label(right, text='Select a user type on the left to see how many users exist for that role.').grid(row=6, column=0, sticky='w')
 
     def _on_login(self):
@@ -90,15 +87,14 @@ class App:
         frm = ttk.Frame(self.root, padding=10)
         frm.pack(fill='both', expand=True)
         ttk.Label(frm, text=f'Welcome: {self.user}').grid(row=0, column=0, sticky='w')
+        ttk.Button(frm, text='Change Password', command=self._change_password).grid(row=0, column=1, sticky='e')
         def _has_permission(perm: str) -> bool:
             role_name = (self.role or '').strip()
             if not role_name:
                 return False
-            # exact match
             perms = ROLE_PERMISSIONS.get(role_name)
             if perms is not None:
                 return ('all' in perms) or (perm in perms)
-            # case-insensitive fallback
             for k, v in ROLE_PERMISSIONS.items():
                 if k.lower() == role_name.lower():
                     return ('all' in v) or (perm in v)
@@ -122,6 +118,38 @@ class App:
             ttk.Button(frm, text='Audit Logs', command=self.open_audit_logs).grid(row=2, column=0, pady=10)
         ttk.Button(frm, text='Logout', command=self.logout).grid(row=3, column=0, pady=10)
 
+    def _change_password(self):
+        """Allow user to change their password."""
+        try:
+            u = database.fetch_one('SELECT username FROM users WHERE id = ?', (self.user_id,))
+            if not u:
+                messagebox.showerror('Error', 'User not found')
+                return
+            username = u['username']
+            cur_pwd = simpledialog.askstring('Current Password', 'Enter current password:', show='*', parent=self.root)
+            if cur_pwd is None:
+                return
+            verified = auth.verify_user(username, cur_pwd)
+            if not verified:
+                messagebox.showerror('Error', 'Current password is incorrect')
+                return
+            new_pwd = simpledialog.askstring('New Password', 'Enter new password (min 8 chars):', show='*', parent=self.root)
+            if new_pwd is None:
+                return
+            if len(new_pwd) < 8:
+                messagebox.showerror('Error', 'Password must be at least 8 characters')
+                return
+            confirm = simpledialog.askstring('Confirm', 'Confirm new password:', show='*', parent=self.root)
+            if confirm is None or confirm != new_pwd:
+                messagebox.showerror('Error', 'Passwords do not match')
+                return
+            auth.update_password(self.user_id, new_pwd)
+            messagebox.showinfo('Success', 'Password updated')
+            audit.audit(self.user_id, self.role, 'change_password', 'user changed their password')
+        except Exception as e:
+            logger.exception('Change password failed')
+            messagebox.showerror('Error', str(e))
+
     def logout(self):
         audit.audit(self.user_id, self.role, 'logout', f'user {self.user} logged out')
         self.user = None
@@ -144,7 +172,6 @@ class App:
             return []
 
     def _populate_role_counts(self):
-        # Clear existing
         for w in getattr(self, 'roles_box', []).winfo_children() if hasattr(self, 'roles_box') else []:
             w.destroy()
         rows = self._get_role_counts()
@@ -152,13 +179,22 @@ class App:
             if hasattr(self, 'roles_box'):
                 ttk.Label(self.roles_box, text='No roles defined').pack(anchor='w')
             return
+        # Map role display names to default usernames used by seeding
+        role_to_username = {
+            'Admin': 'admin',
+            'Manager': 'manager',
+            'Warehouse Staff': 'warehouse',
+            'Driver': 'driver',
+            'Customer Service': 'service'
+        }
         for r in rows:
             text = f"{r['name']} — {r['count']} users"
             if hasattr(self, 'roles_box'):
                 lbl = ttk.Label(self.roles_box, text=text, cursor='hand2')
                 lbl.pack(anchor='w', pady=2)
                 def _on_click(ev, role_name=r['name']):
-                    self.username_var.set(f"{role_name.lower().replace(' ', '_')}")
+                    uname = role_to_username.get(role_name, role_name.lower().replace(' ', '_'))
+                    self.username_var.set(uname)
                 lbl.bind('<Button-1>', _on_click)
 
     def open_shipments(self):
